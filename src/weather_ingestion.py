@@ -6,8 +6,7 @@ import pandas as pd
 
 spark = SparkSession.builder.appName("Weather_Live_Ingestion").getOrCreate()
 
-# Use the key from your screenshot
-API_KEY = "13e933b4af2960b29ab7d5514794acfc"
+API_KEY = "WEATHER API KEY"
 
 # Define ports (Update these lats/lons to match your AIS data areas)
 PORTS = [
