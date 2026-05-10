@@ -7,6 +7,8 @@ from pyspark.sql.types import StructType, StructField, StringType, DoubleType
 # -----------------------------
 spark = SparkSession.builder \
     .appName("AIS_Phase0_1") \
+    .config("spark.driver.memory", "4g") \
+    .config("spark.executor.memory", "4g") \
     .getOrCreate()
 
 # -----------------------------
@@ -26,7 +28,7 @@ ais_schema = StructType([
 df = spark.read \
     .option("header", True) \
     .schema(ais_schema) \
-    .csv("../data/raw/*.csv")
+    .csv("data/raw/*.csv")
 
 print("Raw Data Loaded")
 
@@ -69,7 +71,7 @@ df = df.filter(col("speed") >= 0)
 # -----------------------------
 # 9. Save as Parquet
 # -----------------------------
-output_path = "../data/processed/clean_ais.parquet"
+output_path = "data/processed/clean_ais.parquet"
 
 df.write.mode("overwrite").parquet(output_path)
 

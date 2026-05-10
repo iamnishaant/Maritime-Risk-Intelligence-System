@@ -11,9 +11,16 @@ API_KEY = "13e933b4af2960b29ab7d5514794acfc"
 
 # Define ports (Update these lats/lons to match your AIS data areas)
 PORTS = [
-    ("PORT_A", 51.5085, -0.1257), # London (from your screenshot)
-    ("PORT_B", 40.7128, -74.0060), # New York
-    ("PORT_C", 34.0522, -118.2437) # LA
+    ("PORT_SINGAPORE", 1.5, 104.0),
+    ("PORT_DUBAI", 25.0, 55.0),
+    ("PORT_ROTTERDAM", 51.5, 4.0),
+    ("PORT_SHANGHAI", 31.0, 121.0),
+    ("PORT_MUMBAI", 19.0, 73.0),
+    ("PORT_LOS_ANGELES", 34.0, -118.0),
+    ("PORT_HAMBURG", 53.5, 10.0),
+    ("PORT_TOKYO", 35.5, 140.0),
+    ("PORT_SYDNEY", -33.5, 151.0),
+    ("PORT_CAPE_TOWN", -33.5, 19.0)
 ]
 
 records = []
@@ -58,7 +65,7 @@ if records:
     df = df.withColumn("time", date_trunc("hour", to_timestamp("time")))
 
     # Save to Silver Layer
-    df.write.mode("overwrite").parquet("../data/processed/weather.parquet")
+    df.write.mode("overwrite").parquet("data/processed/weather.parquet")
     print("✅ Live Weather Parquet created successfully!")
 else:
     print("No records collected. Check API key propagation.")

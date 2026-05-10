@@ -5,9 +5,13 @@ from pyspark.sql import SparkSession
 # -----------------------------
 # 1. LOAD DATA
 # -----------------------------
-spark = SparkSession.builder.appName("Phase3_Pro_Graph").getOrCreate()
+spark = SparkSession.builder \
+    .appName("Phase3_Pro_Graph") \
+    .config("spark.driver.memory", "4g") \
+    .config("spark.executor.memory", "4g") \
+    .getOrCreate()
 
-df = spark.read.parquet("../data/processed/fused_features.parquet")
+df = spark.read.parquet("data/processed/fused_features.parquet")
 pdf = df.toPandas()
 
 # -----------------------------
@@ -30,18 +34,22 @@ ports = latest["port_id"].tolist()
 for p in ports:
     G.add_node(p)
 
-# Define routes (can be improved later)
-routes = [
-    ("PORT_C", "PORT_B"),
-    ("PORT_B", "PORT_A"),
-    ("PORT_C", "PORT_A")
-]
-
-# Add edges with dynamic weights
-for u, v in routes:
-    if u in ports and v in ports:
-        source_load = latest[latest["port_id"] == u]["normalized_load"].values[0]
-        G.add_edge(u, v, weight=float(source_load))
+# Define routes from dynamic learning
+try:
+    routes_df = spark.read.parquet("data/processed/dynamic_routes.parquet").toPandas()
+    
+    # Add edges with dynamic weights
+    for _, row in routes_df.iterrows():
+        u = row["port_id"]
+        v = row["next_port"]
+        weight = row["weight"]
+        
+        # Connection safety check
+        if u in ports and v in ports:
+            G.add_edge(u, v, weight=float(weight))
+            
+except Exception as e:
+    print(f"⚠️ Warning: Could not load dynamic routes. Using empty graph edges. Error: {e}")
 
 # -----------------------------
 # 4. INITIAL RISK
@@ -86,7 +94,7 @@ for node, data in G.nodes(data=True):
     })
 
 result_df = pd.DataFrame(results)
-result_df.to_csv("../data/processed/final_risk_scores.csv", index=False)
+result_df.to_csv("data/processed/final_risk_scores.csv", index=False)
 
 # -----------------------------
 # 7. DISPLAY

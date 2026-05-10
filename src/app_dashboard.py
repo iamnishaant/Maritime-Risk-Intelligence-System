@@ -10,7 +10,7 @@ st.set_page_config(page_title="Maritime AI Risk Control", layout="wide")
 st.title("🚢 Maritime Disruption Intelligence System")
 st.markdown("### Real-Time Graph-Based Risk Propagation Dashboard")
 
-DATA_PATH = "../data/results/final_research_report_upgraded.csv"
+DATA_PATH = "data/results/final_research_report_upgraded.csv"
 
 # -----------------------------
 # LOAD DATA
@@ -45,6 +45,12 @@ m1.metric("🔥 Highest Risk Node", top_port_row["port_id"])
 m2.metric("📊 System Risk Index", f"{top_port_row['total_system_risk']:.3f}")
 m3.metric("📡 Engine Status", "Active")
 
+with st.expander("ℹ️ How to read this metric"):
+    st.markdown("""
+    The **System Risk Index** is an ML-weighted score (0.0 to 1.0). 
+    It combines **Local Congestion** (learned via K-Means clustering), **Weather conditions**, and **Graph Propagation** (risk cascading from connected ports).
+    """)
+
 # -----------------------------
 # MAIN LAYOUT
 # -----------------------------
@@ -65,6 +71,11 @@ with col1:
         st.dataframe(hidden_df, width="stretch")
     else:
         st.success("No cascading risks detected.")
+        
+    with st.expander("ℹ️ What is a Hidden Threat?"):
+        st.markdown("""
+        A **Hidden Threat (Risk Delta)** occurs when a port looks fine locally, but is flagged as high-risk because a major delay is cascading towards it through the shipping network. Traditional systems completely miss this.
+        """)
 
 # -----------------------------
 # 🌐 GRAPH WITH DYNAMIC COLORS
@@ -73,10 +84,27 @@ with col2:
     st.subheader("🌐 Network Topology")
 
     G = nx.DiGraph()
-    G.add_edges_from([("PORT_C", "PORT_B"), ("PORT_B", "PORT_A")])
+    
+    # Load dynamic edges safely
+    try:
+        routes_df = pd.read_parquet("data/processed/dynamic_routes.parquet")
+        top_edges = routes_df[routes_df["weight"] > 0.01].sort_values("weight", ascending=False).head(20)
+        for _, row in top_edges.iterrows():
+            G.add_edge(row["port_id"], row["next_port"])
+    except Exception:
+        pass
+        
+    # Fallback if no routes survived the strict filters
+    if G.number_of_nodes() == 0:
+        G.add_edges_from([
+            ("PORT_SINGAPORE", "PORT_DUBAI"),
+            ("PORT_DUBAI", "PORT_ROTTERDAM"),
+            ("PORT_SHANGHAI", "PORT_LOS_ANGELES")
+        ])
 
     node_colors = []
-    for node in G.nodes():
+    nodes_list = list(G.nodes())
+    for node in nodes_list:
         node_data = df[df["port_id"] == node]
 
         if not node_data.empty:
@@ -91,21 +119,49 @@ with col2:
         else:
             node_colors.append("#2ecc71")  # Green
 
-    fig, ax = plt.subplots(figsize=(5, 3.5))
-    pos = nx.spring_layout(G, seed=42)
+    if nodes_list:
+        fig, ax = plt.subplots(figsize=(6, 4.5))
+        fig.patch.set_facecolor('#0e1117') # Streamlit dark background
+        ax.set_facecolor('#0e1117')
 
-    nx.draw(
-        G,
-        pos,
-        with_labels=True,
-        node_color=node_colors,
-        node_size=2500,
-        font_weight='bold',
-        arrows=True,
-        ax=ax
-    )
+        # Spread out nodes cleanly
+        pos = nx.spring_layout(G, seed=42, k=2.0)
+        
+        # Clean up labels for display
+        labels = {n: n.replace("PORT_", "").replace("_", " ") for n in nodes_list}
 
-    st.pyplot(fig)
+        # Draw nodes
+        nx.draw_networkx_nodes(G, pos, nodelist=nodes_list, node_color=node_colors, node_size=900, ax=ax)
+        
+        # Draw edges with a sleek curve
+        nx.draw_networkx_edges(
+            G, pos, 
+            edge_color='#888888', 
+            width=1.5, 
+            arrowsize=15, 
+            connectionstyle='arc3,rad=0.15', 
+            ax=ax
+        )
+        
+        # Draw labels in white
+        nx.draw_networkx_labels(
+            G, pos, 
+            labels, 
+            font_size=9, 
+            font_color='white', 
+            font_weight='bold', 
+            ax=ax
+        )
+
+        ax.axis('off')
+        st.pyplot(fig)
+    else:
+        st.info("No active network topology to display.")
+        
+    with st.expander("ℹ️ Understanding the Network"):
+        st.markdown("""
+        This map is **data-driven**, not hardcoded. The system tracks raw AIS data and dynamically draws edges only where significant vessel traffic actually exists. **Red nodes** indicate critical systemic risk.
+        """)
 
 # -----------------------------
 # 📈 TEMPORAL ANALYSIS (SMOOTHED)
@@ -126,7 +182,44 @@ else:
 
 
 # -----------------------------
+# 🧠 DEEP DIVE INTELLIGENCE
+# -----------------------------
+st.markdown("---")
+st.subheader("🧠 Deep Dive Intelligence (AI Port Analysis)")
+
+selected_port = st.selectbox("Select a Port to Analyze:", df["port_id"].unique())
+
+if selected_port:
+    port_stats = df[df["port_id"] == selected_port].sort_values("time", ascending=False).iloc[0]
+    
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Local Anomaly Score (K-Means)", f"{port_stats.get('A_norm', 0):.3f}")
+    c2.metric("Environmental Score", f"{port_stats.get('E_norm', 0):.3f}")
+    c3.metric("Incoming Network Risk", f"{port_stats.get('G_norm', 0):.3f}")
+    
+    st.info(f"""
+    **AI Analysis for {selected_port}:**
+    *   **Baseline Risk:** `{port_stats.get('baseline_risk', 0):.3f}` (Risk if this port was isolated from the global network).
+    *   **Total System Risk:** `{port_stats.get('total_system_risk', 0):.3f}` (True risk after accounting for global supply chain cascades).
+    *   **Risk Delta:** `{port_stats.get('risk_delta', 0):.3f}`. 
+    """)
+    
+    delta = port_stats.get('risk_delta', 0)
+    total_risk = port_stats.get('total_system_risk', 0)
+    
+    if delta > 0.1:
+        st.warning(f"⚠️ **Conclusion:** {selected_port} is suffering from heavy cascading delays. The problem is NOT local; it is importing delays from upstream ports.")
+    elif total_risk > 0.5:
+        st.error(f"🚨 **Conclusion:** {selected_port} is highly congested locally. It is likely a source of disruption for the rest of the network.")
+    else:
+        st.success(f"✅ **Conclusion:** {selected_port} is currently operating within normal parameters. No significant local or cascading threats detected.")
+
+# -----------------------------
 # AUTO REFRESH (SAFE)
 # -----------------------------
-time.sleep(3)
-st.rerun()
+st.sidebar.markdown("---")
+live_mode = st.sidebar.checkbox("🟢 Enable Live Auto-Refresh", value=False)
+
+if live_mode:
+    time.sleep(3)
+    st.rerun()

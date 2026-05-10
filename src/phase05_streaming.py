@@ -6,7 +6,7 @@ from datetime import datetime
 # 1. LOAD DATA
 # -----------------------------
 try:
-    df = pd.read_csv("../data/results/final_research_report_upgraded.csv")
+    df = pd.read_csv("data/results/final_research_report_upgraded.csv")
 except:
     print("❌ ERROR: File not found. Check path.")
     exit()

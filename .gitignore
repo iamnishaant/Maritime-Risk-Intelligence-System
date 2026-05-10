@@ -1,8 +1,7 @@
-data/
+data/raw/
+data/processed/
 spark-warehouse/
 __pycache__/
 *.parquet
-*.csv
 .ipynb_checkpoints/
-
-
+*.log

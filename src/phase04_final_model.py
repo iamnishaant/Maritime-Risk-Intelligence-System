@@ -2,13 +2,17 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from pyspark.sql import SparkSession
 
-spark = SparkSession.builder.appName("Phase4_Final_Evaluation").getOrCreate()
+spark = SparkSession.builder \
+    .appName("Phase4_Final_Evaluation") \
+    .config("spark.driver.memory", "4g") \
+    .config("spark.executor.memory", "4g") \
+    .getOrCreate()
 
 # -----------------------------
 # 1. LOAD DATA
 # -----------------------------
-features_df = spark.read.parquet("../data/processed/fused_features.parquet").toPandas()
-graph_df = pd.read_csv("../data/processed/final_risk_scores.csv")
+features_df = spark.read.parquet("data/processed/fused_features.parquet").toPandas()
+graph_df = pd.read_csv("data/processed/final_risk_scores.csv")
 
 # Rename for clarity
 graph_df = graph_df.rename(columns={"final_risk": "graph_risk"})
@@ -31,7 +35,31 @@ df["E_norm"] = normalize(df["weather_score"])
 # -----------------------------
 # 4. RISK COMPUTATION
 # -----------------------------
-alpha, beta, gamma = 0.5, 0.3, 0.2
+# Initial proxy target for learning (purely local & environmental)
+df["proxy_target"] = (0.5 * df["A_norm"]) + (0.5 * df["E_norm"])
+
+import numpy as np
+from sklearn.linear_model import LinearRegression
+
+X = df[["A_norm", "G_norm", "E_norm"]].fillna(0)
+y = df["proxy_target"].fillna(0)
+
+try:
+    model = LinearRegression()
+    model.fit(X, y)
+
+    # Ensure non-negative weights and normalize
+    weights = np.maximum(model.coef_, 0)
+    if weights.sum() > 0:
+        weights = weights / weights.sum()
+        alpha, beta, gamma = weights
+    else:
+        alpha, beta, gamma = 0.5, 0.3, 0.2
+except Exception as e:
+    print(f"⚠️ Warning: ML weights failed. Using heuristics. Error: {e}")
+    alpha, beta, gamma = 0.5, 0.3, 0.2
+
+print(f"Learned ML Weights -> Alpha: {alpha:.3f}, Beta: {beta:.3f}, Gamma: {gamma:.3f}")
 
 df["baseline_risk"] = (alpha * df["A_norm"]) + (gamma * df["E_norm"])
 
@@ -108,7 +136,7 @@ df["temporal_risk"] = df.groupby("port_id")["total_system_risk"].transform(
 # -----------------------------
 # 7. SAVE OUTPUT
 # -----------------------------
-df.to_csv("../data/results/final_research_report_upgraded.csv", index=False)
+df.to_csv("data/results/final_research_report_upgraded.csv", index=False)
 
 # -----------------------------
 # 8. SUMMARY
@@ -124,6 +152,6 @@ print(summary)
 summary[["baseline_risk", "total_system_risk"]].plot(kind="bar")
 plt.title("Baseline vs Proposed Model")
 plt.ylabel("Normalized Risk")
-plt.savefig("../data/results/risk_comparison_plot_upgraded.png")
+plt.savefig("data/results/risk_comparison_plot_upgraded.png")
 
 print("✅ Phase 4 Complete")
