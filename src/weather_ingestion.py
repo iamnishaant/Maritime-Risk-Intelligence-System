@@ -1,4 +1,4 @@
-from pyspark.sql import SparkSession
+⁶from pyspark.sql import SparkSession
 from pyspark.sql.functions import to_timestamp, date_trunc
 import requests
 import time
@@ -7,7 +7,7 @@ import pandas as pd
 spark = SparkSession.builder.appName("Weather_Live_Ingestion").getOrCreate()
 
 # Use the key from your screenshot
-API_KEY = "13e933b4af2960b29ab7d5514794acfc"
+API_KEY = "api key"
 
 # Define ports (Update these lats/lons to match your AIS data areas)
 PORTS = [
